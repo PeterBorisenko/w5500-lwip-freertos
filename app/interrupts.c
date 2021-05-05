@@ -13,18 +13,15 @@
 
 extern SemaphoreHandle_t s_xSemaphoreSpi;
 
-void EXTI_IRQ9_5Handler(void)
-{
+void EXTI_IRQ9_5Handler(void) {
   portBASE_TYPE xHigherPriorityTaskWoken = pdFALSE;
-  if ((EXTI->IMR & EXTI_Line6) && (EXTI->PR & EXTI_Line6))
-  {
-    EXTI_ClearITPendingBit(0x007FFFFF); // Очищаем все флаги
-    xSemaphoreGiveFromISR( s_xSemaphoreSpi, &xHigherPriorityTaskWoken);
+  if ((EXTI->IMR & EXTI_Line6) && (EXTI->PR & EXTI_Line6)) {
+    EXTI_ClearITPendingBit(0x007FFFFF); // Clear all flags
+    xSemaphoreGiveFromISR(s_xSemaphoreSpi, &xHigherPriorityTaskWoken);
   }
-  // Switch tasks if necessary. */
-  if( xHigherPriorityTaskWoken != pdFALSE )
-  {
-    portEND_SWITCHING_ISR( xHigherPriorityTaskWoken );
+  // Switch tasks if necessary
+  if (xHigherPriorityTaskWoken != pdFALSE) {
+    portEND_SWITCHING_ISR(xHigherPriorityTaskWoken);
   }
 }
 

@@ -13,5 +13,6 @@
 void wiz_lowlevel_setup(void);
 void wiz_transmit_pbuf(struct pbuf *buf);
 int wiz_read_receive_pbuf(struct pbuf **buf);
+void wiz_hwReset(void);
 
 #endif /* __WIZCHIP_PORT_H_ */

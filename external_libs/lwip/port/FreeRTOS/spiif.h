@@ -11,6 +11,11 @@
 #include <lwip/netif.h>
 #include <lwip/err.h>
 
+/** netif init function; have this called by passing it to netif_add, along
+ * with a pointer to an uninitialized enc_device_t state. The MAC address has
+ * to be configured beforehand in the netif, and configured on the card. */
 err_t spi_if_init(struct netif *netif);
+
+void spi_if_isr(void);
 
 #endif /* __SPIIF_H */

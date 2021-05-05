@@ -22,6 +22,8 @@
 SPI_TypeDef* wiz_spi;
 GPIO_TypeDef* wiz_gpio_port;
 uint32_t wiz_cs_pin;
+GPIO_TypeDef* wiz_rst_gpio_port;
+uint32_t wiz_rst_pin;
 
 void wiz_lowlevel_setup(void)
 {
@@ -42,20 +44,36 @@ void wiz_lowlevel_setup(void)
   wiz_cs_pin= GPIO_Pin_13;
   wiz_gpio_port= GPIOE;
 
+  wiz_rst_pin= GPIO_Pin_13;
+  wiz_rst_gpio_port= GPIOD;
+
   SPI_BspInit(wiz_spi); // Located in spi.h. Replace with your own
 
   RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA, SPL_ENABLE);
   RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOE, SPL_ENABLE);
+  RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOD, SPL_ENABLE);
 
+  // CS Pin
   gpioInit.GPIO_Pin = wiz_cs_pin;
   gpioInit.GPIO_Mode = GPIO_Mode_OUT;
   gpioInit.GPIO_Speed = GPIO_Speed_25MHz;
   gpioInit.GPIO_OType = GPIO_OType_PP;
   gpioInit.GPIO_PuPd = GPIO_PuPd_NOPULL;
-  GPIO_Init(wiz_gpio_port, &gpioInit);
+  GPIO_Init(wiz_cs_gpio_port, &gpioInit);
 
-  GPIO_WriteBit(wiz_gpio_port, wiz_cs_pin, Bit_SET);
+  GPIO_WriteBit(wiz_cs_gpio_port, wiz_cs_pin, Bit_SET);
 
+  // RST Pin
+  gpioInit.GPIO_Pin = wiz_rst_pin;
+  gpioInit.GPIO_Mode = GPIO_Mode_OUT;
+  gpioInit.GPIO_Speed = GPIO_Speed_50MHz;
+  gpioInit.GPIO_OType = GPIO_OType_PP;
+  gpioInit.GPIO_PuPd = GPIO_PuPd_UP;
+  GPIO_Init(wiz_rst_gpio_port, &gpioInit);
+
+  GPIO_WriteBit(wiz_rst_gpio_port, wiz_rst_pin, Bit_SET);
+
+  // INT Pin
   gpioInit.GPIO_Pin = GPIO_Pin_6;
   gpioInit.GPIO_Mode = GPIO_Mode_IN;
   gpioInit.GPIO_Speed = GPIO_Speed_50MHz;
@@ -74,6 +92,7 @@ void wiz_lowlevel_setup(void)
   EXTI_ClearITPendingBit(EXTI_Line6);
   NVIC_ClearPendingIRQ(EXTI9_5_IRQn);
 
+  /* Enable Ethernet global Interrupt */
   NVIC_InitStructure.NVIC_IRQChannel = EXTI9_5_IRQn;
   NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 5;
   NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
@@ -87,10 +106,9 @@ void wiz_transmit_pbuf(struct pbuf *p)
   uint16_t length = p->tot_len;
 
   if (freeSize < length) {
-    //! @todo Handle insufficent space in buffer
+    /* TODO: Handle insufficent space in buffer */
   }
   while(1) {
-
     wiz_send_data(0, p->payload, p->len);
     if (p->len == p->tot_len)
       break;
@@ -113,6 +131,7 @@ int wiz_read_receive_pbuf(struct pbuf **buf)
 
   length= getSn_RX_RSR(0);
   if (length < 4) {
+    /* This could be indicative of a crashed (brown-outed?) controller */
     goto end;
   }
 
@@ -121,6 +140,7 @@ int wiz_read_receive_pbuf(struct pbuf **buf)
   //__bswap16(framelen); //!< didn't work for me
   framelen= (framelen << 8) | (framelen >> 8);
 
+  /* workaround for https://savannah.nongnu.org/bugs/index.php?50040 */
   if (framelen > 32000) {
     wiz_recv_ignore(0, framelen);
     setSn_CR(0, Sn_CR_RECV);
@@ -156,6 +176,24 @@ void  wizchip_cs_select(void)            {
 
 void  wizchip_cs_deselect(void)          {
   GPIO_WriteBit(wiz_gpio_port, wiz_cs_pin, Bit_SET);
+}
+
+void  wizchip_rst_assert(void)            {
+    GPIO_WriteBit(wiz_rst_gpio_port, wiz_rst_pin, Bit_RESET);
+}
+
+void  wizchip_rst_deassert(void)          {
+    GPIO_WriteBit(wiz_rst_gpio_port, wiz_rst_pin, Bit_SET);
+}
+
+
+void wiz_hwReset(void) {
+    uint32_t t= 168000;
+    wizchip_rst_assert();
+    while(--t);
+    wizchip_rst_deassert();
+    t= 168000;
+    while(--t);
 }
 
 uint8_t wizchip_spi_readbyte(void)        {
