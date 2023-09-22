@@ -42,12 +42,10 @@ static void spi_if_check_link_state(void)
 	linkstate = phyReg & (1 << 0);
 	if (linkstate && !netif_is_link_up(spi_if_netif))
 	{
-		debug_print("ETH0 Hardware link up\r\n");
 		netif_set_link_up(spi_if_netif);
 	}
 	else if (!linkstate && netif_is_link_up(spi_if_netif))
 	{
-		debug_print("ETH0 Hardware link down\r\n");
 		netif_set_link_down(spi_if_netif);
 	}
 }
