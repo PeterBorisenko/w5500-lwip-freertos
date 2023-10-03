@@ -29,6 +29,27 @@ void spi_if_clr(void) {
   setSIR(0);
 }
 
+/**
+ * Checks PHYCFGR for the hardware link state, and calls lwIP's
+ * netif_set_link_up() and netif_set_link_down() functions as needed.
+ */
+static void spi_if_check_link_state(void)
+{
+	static bool linkstate;
+
+	// Bit 0 is link status (1 = up), 1 is speed (1 = 100), 2 is duplex (1 = full)
+	volatile uint8_t phyReg = getPHYCFGR();
+	linkstate = phyReg & (1 << 0);
+	if (linkstate && !netif_is_link_up(spi_if_netif))
+	{
+		netif_set_link_up(spi_if_netif);
+	}
+	else if (!linkstate && netif_is_link_up(spi_if_netif))
+	{
+		netif_set_link_down(spi_if_netif);
+	}
+}
+
 void spi_if_input(void * pvParameters) {
   err_t result;
   struct pbuf *p = NULL;
@@ -37,18 +58,16 @@ void spi_if_input(void * pvParameters) {
   bool linkstate;
 
   for ( ;; ) {
-    if (xSemaphoreTake(s_xSemaphoreSpi, 500) != pdTRUE) {
+    if (xSemaphoreTake(s_xSemaphoreSpi, pdMS_TO_TICKS(500)) != pdTRUE) {
       spi_if_clr();
-      volatile uint8_t phyReg= getPHYCFGR();
-      linkstate= phyReg & (1 << 0);
-      if (linkstate && !netif_is_link_up(spi_if_netif)) {
-        netif_set_link_up(spi_if_netif);
-      }
-      else if (!linkstate && netif_is_link_up(spi_if_netif)) {
-        netif_set_link_down(spi_if_netif);
-      }
+      spi_if_check_link_state();
     }
     else {
+ 			if (!netif_is_link_up(spi_if_netif))
+			{
+				// Link must have come back up - need to check
+				spi_if_check_link_state();
+			}
 GET_NEXT_FRAGMENT:
       spi_if_clr();
       res= wiz_read_receive_pbuf(&p);
